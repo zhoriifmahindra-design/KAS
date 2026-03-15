@@ -134,7 +134,7 @@ Saldo
 
 <input type="text" id="ket" placeholder="Keterangan">
 
-<input type="text" id="jumlah" placeholder="Jumlah">
+<input type="number" min="1" step="1" id="jumlah" placeholder="Jumlah (Rp)">
 
 <button onclick="tambah()">Simpan</button>
 
@@ -159,7 +159,7 @@ Saldo
 <button onclick="restore()">Restore</button>
 <button onclick="exportCSV()">Export CSV</button>
 
-<input type="file" id="excelFile" style="display:none">
+<input type="file" id="excelFile" accept=".xlsx,.xls" style="display:none">
 <input type="file" id="jsonFile" style="display:none">
 
 </div>
@@ -196,20 +196,24 @@ Saldo
 
 <script>
 
-let dataKas=JSON.parse(localStorage.getItem("kas"))||[];
+let dataKas = JSON.parse(localStorage.getItem("kas")) || [];
 let chart;
+
+document.getElementById("tanggal").value =
+new Date().toISOString().split("T")[0];
 
 function save(){
 localStorage.setItem("kas",JSON.stringify(dataKas));
 }
 
 function rupiah(n){
-return new Intl.NumberFormat("id-ID").format(n);
+return "Rp " + new Intl.NumberFormat("id-ID").format(n);
 }
 
 function tambah(){
 
 let obj={
+id: Date.now(),
 tanggal:document.getElementById("tanggal").value,
 jenis:document.getElementById("jenis").value,
 ket:document.getElementById("ket").value,
@@ -221,24 +225,61 @@ alert("Lengkapi data");
 return;
 }
 
+if(obj.jumlah<=0){
+alert("Jumlah harus lebih dari 0");
+return;
+}
+
 dataKas.push(obj);
 
 save();
-
 render();
+
+document.getElementById("ket").value="";
+document.getElementById("jumlah").value="";
+document.getElementById("ket").focus();
 
 }
 
 function render(){
+
+let search = document.getElementById("search").value.toLowerCase();
+let filter = document.getElementById("filter").value;
+
+let now = new Date();
+let bulanIni = now.toISOString().slice(0,7);
+let tahunIni = now.getFullYear();
+
+dataKas.sort((a,b)=>new Date(a.tanggal)-new Date(b.tanggal));
 
 let tbody=document.getElementById("table");
 tbody.innerHTML="";
 
 let saldo=0, masuk=0, keluar=0;
 
-dataKas.sort((a,b)=>a.tanggal.localeCompare(b.tanggal));
+let dataTampil=[];
 
-dataKas.forEach((d,i)=>{
+dataKas.forEach(d=>{
+
+let cocokSearch=d.ket.toLowerCase().includes(search);
+
+let cocokFilter=true;
+
+if(filter=="month"){
+cocokFilter=d.tanggal.slice(0,7)==bulanIni;
+}
+
+if(filter=="year"){
+cocokFilter=d.tanggal.slice(0,4)==tahunIni;
+}
+
+if(cocokSearch && cocokFilter){
+dataTampil.push(d);
+}
+
+});
+
+dataKas.forEach(d=>{
 
 let jumlah=Number(d.jumlah);
 
@@ -250,6 +291,8 @@ saldo-=jumlah;
 keluar+=jumlah;
 }
 
+if(dataTampil.includes(d)){
+
 tbody.innerHTML+=`
 <tr>
 <td>${d.tanggal}</td>
@@ -258,10 +301,12 @@ tbody.innerHTML+=`
 <td>${d.jenis=="keluar"?rupiah(jumlah):""}</td>
 <td>${rupiah(saldo)}</td>
 <td>
-<button onclick="hapus(${i})">X</button>
+<button onclick="hapus(${d.id})">X</button>
 </td>
 </tr>
 `;
+
+}
 
 });
 
@@ -273,17 +318,25 @@ grafik();
 
 }
 
-function hapus(i){
+function hapus(id){
 
 if(confirm("Hapus transaksi?")){
-dataKas.splice(i,1);
+
+dataKas=dataKas.filter(d=>d.id!==id);
+
 save();
 render();
+
 }
 
 }
 
 function grafik(){
+
+if(dataKas.length===0){
+if(chart) chart.destroy();
+return;
+}
 
 let bulanan={};
 
@@ -301,8 +354,8 @@ bulanan[bulan]-=Number(d.jumlah);
 
 });
 
-let labels=Object.keys(bulanan);
-let values=Object.values(bulanan);
+let labels=Object.keys(bulanan).sort();
+let values=labels.map(l=>bulanan[l]);
 
 if(chart) chart.destroy();
 
@@ -325,8 +378,8 @@ data:values
 function backup(){
 
 let blob=new Blob([JSON.stringify(dataKas)],{type:"application/json"});
-let a=document.createElement("a");
 
+let a=document.createElement("a");
 a.href=URL.createObjectURL(blob);
 a.download="backup_kas.json";
 a.click();
@@ -334,9 +387,7 @@ a.click();
 }
 
 function restore(){
-
 document.getElementById("jsonFile").click();
-
 }
 
 document.getElementById("jsonFile").addEventListener("change",e=>{
@@ -355,37 +406,63 @@ reader.readAsText(file);
 });
 
 function importExcel(){
-
 document.getElementById("excelFile").click();
-
 }
 
-document.getElementById("excelFile").addEventListener("change",e=>{
+document.getElementById("excelFile").addEventListener("change",function(e){
 
-let file=e.target.files[0];
-let reader=new FileReader();
+const file=e.target.files[0];
 
-reader.onload=function(evt){
+if(!file){
+alert("File tidak dipilih");
+return;
+}
 
-let workbook=XLSX.read(evt.target.result,{type:"array"});
-let sheet=workbook.Sheets[workbook.SheetNames[0]];
-let rows=XLSX.utils.sheet_to_json(sheet,{header:1});
+const reader=new FileReader();
+
+reader.onload=function(event){
+
+const data=new Uint8Array(event.target.result);
+
+const workbook=XLSX.read(data,{type:"array"});
+
+const sheet=workbook.Sheets[workbook.SheetNames[0]];
+
+const rows=XLSX.utils.sheet_to_json(sheet,{header:1});
 
 rows.forEach((r,i)=>{
 
-if(i==0) return;
+if(i===0) return;
 
 let tanggal=r[0];
+if(!tanggal) return;
+
 let ket=r[1];
 let masuk=r[2];
 let keluar=r[3];
 
-if(masuk){
-dataKas.push({tanggal,jenis:"masuk",ket,jumlah:Number(masuk)});
+if(masuk && masuk!=0){
+
+dataKas.push({
+id:Date.now()+Math.random(),
+tanggal:formatTanggal(tanggal),
+jenis:"masuk",
+ket:ket||"",
+jumlah:Number(masuk)
+});
+
 }
 
-if(keluar){
-dataKas.push({tanggal,jenis:"keluar",ket,jumlah:Number(keluar)});
+if(keluar && keluar!=0){
+
+dataKas.push({
+id:Date.now()+Math.random(),
+tanggal:formatTanggal(tanggal),
+jenis:"keluar",
+ket:ket||"",
+jumlah:Number(keluar)
+});
+
 }
 
 });
@@ -393,18 +470,38 @@ dataKas.push({tanggal,jenis:"keluar",ket,jumlah:Number(keluar)});
 save();
 render();
 
+alert("Import Excel berhasil");
+
+document.getElementById("excelFile").value="";
+
 };
 
 reader.readAsArrayBuffer(file);
 
 });
 
+function formatTanggal(tgl){
+
+if(typeof tgl==="number"){
+
+let date=XLSX.SSF.parse_date_code(tgl);
+
+return date.y+"-"+String(date.m).padStart(2,"0")+"-"+String(date.d).padStart(2,"0");
+
+}
+
+return tgl;
+
+}
+
 function exportCSV(){
 
 let csv="Tanggal,Keterangan,Masuk,Keluar\n";
 
 dataKas.forEach(d=>{
+
 csv+=`${d.tanggal},${d.ket},${d.jenis=="masuk"?d.jumlah:""},${d.jenis=="keluar"?d.jumlah:""}\n`;
+
 });
 
 let blob=new Blob([csv]);
@@ -417,9 +514,7 @@ a.click();
 }
 
 function toggleDark(){
-
 document.body.classList.toggle("dark");
-
 }
 
 render();
