@@ -5,8 +5,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>KASKU SUPER</title>
+<title>KK</title>
 
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
@@ -29,6 +30,12 @@ padding:20px;
 border-radius:12px;
 margin-bottom:20px;
 box-shadow:0 4px 12px rgba(0,0,0,0.05);
+transition:.3s;
+}
+
+.card:hover{
+transform:translateY(-3px);
+box-shadow:0 10px 25px rgba(0,0,0,0.08);
 }
 
 input,select{
@@ -77,22 +84,60 @@ font-size:12px;
 padding:5px 10px;
 }
 
-</style>
+.stats{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+gap:15px;
+}
 
+.box{
+padding:20px;
+border-radius:10px;
+color:white;
+}
+
+.masuk{background:#22c55e;}
+.keluar{background:#ef4444;}
+.saldoBox{background:#3b82f6;}
+
+</style>
 </head>
 
 <body>
 
 <div class="container">
 
-<h2>KASKU SUPER</h2>
+<h2><i class="fa fa-wallet"></i> KK</h2>
 
 <div class="card">
-
 Saldo Saat Ini
-
 <div class="saldo" id="saldo">Rp 0</div>
+</div>
 
+<div class="card">
+<h3>Statistik Keuangan</h3>
+
+<div class="stats">
+
+<div class="box masuk">
+<i class="fa fa-arrow-down"></i>
+<p>Pemasukan</p>
+<h2 id="totalMasuk">Rp 0</h2>
+</div>
+
+<div class="box keluar">
+<i class="fa fa-arrow-up"></i>
+<p>Pengeluaran</p>
+<h2 id="totalKeluar">Rp 0</h2>
+</div>
+
+<div class="box saldoBox">
+<i class="fa fa-wallet"></i>
+<p>Saldo</p>
+<h2 id="saldoCard">Rp 0</h2>
+</div>
+
+</div>
 </div>
 
 <div class="card">
@@ -107,10 +152,11 @@ Saldo Saat Ini
 </select>
 
 <input type="text" id="ket" placeholder="Keterangan">
-
 <input type="text" id="jumlah" placeholder="Jumlah">
 
-<button onclick="tambah()">Simpan</button>
+<button onclick="tambah()">
+<i class="fa fa-save"></i> Simpan
+</button>
 
 </div>
 
@@ -124,13 +170,29 @@ Saldo Saat Ini
 
 <div class="card">
 
-<h3>Grafik Keuangan</h3>
+<h3>Filter</h3>
 
+<select id="filter" onchange="tampil()">
+<option value="all">Semua</option>
+<option value="today">Hari Ini</option>
+<option value="month">Bulan Ini</option>
+<option value="year">Tahun Ini</option>
+</select>
+
+</div>
+
+<div class="card">
+
+<h3>Grafik Keuangan</h3>
 <canvas id="grafik"></canvas>
 
 </div>
 
 <div class="card">
+
+<button onclick="backup()">Backup</button>
+<button onclick="importData()">Import</button>
+<input type="file" id="fileImport" style="display:none">
 
 <h3>Data Transaksi</h3>
 
@@ -139,7 +201,6 @@ Saldo Saat Ini
 <table>
 
 <thead>
-
 <tr>
 <th>Tanggal</th>
 <th>Keterangan</th>
@@ -147,7 +208,6 @@ Saldo Saat Ini
 <th>Keluar</th>
 <th>Aksi</th>
 </tr>
-
 </thead>
 
 <tbody id="tabel"></tbody>
@@ -160,57 +220,63 @@ Saldo Saat Ini
 
 <script>
 
-document.addEventListener("DOMContentLoaded", function(){
+document.addEventListener("DOMContentLoaded",function(){
 
-let dataKas = JSON.parse(localStorage.getItem("dataKas")) || [];
-let editIndex = null;
-let chart = null;
+let dataKas=JSON.parse(localStorage.getItem("dataKas"))||[];
+let editIndex=null;
+let chart=null;
+
+document.getElementById("tanggal").value=new Date().toISOString().split("T")[0];
 
 function rupiah(angka){
 return new Intl.NumberFormat("id-ID").format(angka);
 }
 
-/* FORMAT INPUT RUPIAH */
+const inputJumlah=document.getElementById("jumlah");
 
-const inputJumlah = document.getElementById("jumlah");
-
-inputJumlah.addEventListener("input", function(e){
-
-let angka = e.target.value.replace(/\D/g,'');
-
-e.target.value = rupiah(angka);
-
+inputJumlah.addEventListener("input",function(e){
+let angka=e.target.value.replace(/\D/g,'');
+e.target.value=rupiah(angka);
 });
-
-/* TAMPIL DATA */
 
 function tampil(){
 
 let tabel=document.getElementById("tabel");
 let cari=document.getElementById("search").value.toLowerCase();
+let filter=document.getElementById("filter").value;
 
 tabel.innerHTML="";
 
 let saldo=0;
 let masuk=0;
 let keluar=0;
-let totalCariMasuk=0;
+let totalMasuk=0;
+let totalKeluar=0;
+
+let today=new Date();
+let bulan=today.getMonth();
+let tahun=today.getFullYear();
 
 dataKas.forEach((d,i)=>{
 
-if(d.ket.toLowerCase().includes(cari)){
+let tgl=new Date(d.tanggal);
 
-let jumlah = Number(d.jumlah);
+if(filter=="today" && d.tanggal!=today.toISOString().split("T")[0]) return;
+if(filter=="month" && tgl.getMonth()!=bulan) return;
+if(filter=="year" && tgl.getFullYear()!=tahun) return;
+
+if(!d.ket.toLowerCase().includes(cari)) return;
+
+let jumlah=Number(d.jumlah);
 
 if(d.jenis=="masuk"){
 saldo+=jumlah;
 masuk+=jumlah;
-totalCariMasuk+=jumlah;
-}
-
-if(d.jenis=="keluar"){
+totalMasuk+=jumlah;
+}else{
 saldo-=jumlah;
 keluar+=jumlah;
+totalKeluar+=jumlah;
 }
 
 tabel.innerHTML+=`
@@ -220,43 +286,28 @@ tabel.innerHTML+=`
 <td>${d.jenis=="masuk"?"Rp "+rupiah(jumlah):"-"}</td>
 <td>${d.jenis=="keluar"?"Rp "+rupiah(jumlah):"-"}</td>
 <td>
-<button class="edit" onclick="edit(${i})">edit</button>
-<button class="hapus" onclick="hapus(${i})">hapus</button>
+<button class="edit" onclick="edit(${i})">Edit</button>
+<button class="hapus" onclick="hapus(${i})">Hapus</button>
 </td>
 </tr>
 `;
 
-}
-
 });
 
 document.getElementById("saldo").innerText="Rp "+rupiah(saldo);
-
-/* TOTAL PEMASUKAN HASIL PENCARIAN */
-
-if(cari!=""){
-
-tabel.innerHTML+=`
-<tr style="background:#f3f4f6;font-weight:bold">
-<td colspan="2">Total Pemasukan Hasil Pencarian</td>
-<td colspan="3">Rp ${rupiah(totalCariMasuk)}</td>
-</tr>
-`;
-
-}
+document.getElementById("saldoCard").innerText="Rp "+rupiah(saldo);
+document.getElementById("totalMasuk").innerText="Rp "+rupiah(totalMasuk);
+document.getElementById("totalKeluar").innerText="Rp "+rupiah(totalKeluar);
 
 grafik(masuk,keluar);
 
 }
-
-/* TAMBAH DATA */
 
 function tambah(){
 
 let tanggal=document.getElementById("tanggal").value;
 let jenis=document.getElementById("jenis").value;
 let ket=document.getElementById("ket").value;
-
 let jumlah=document.getElementById("jumlah").value.replace(/\./g,'');
 
 if(!tanggal||!ket||!jumlah){
@@ -265,14 +316,10 @@ return;
 }
 
 if(editIndex==null){
-
 dataKas.push({tanggal,jenis,ket,jumlah});
-
 }else{
-
 dataKas[editIndex]={tanggal,jenis,ket,jumlah};
 editIndex=null;
-
 }
 
 localStorage.setItem("dataKas",JSON.stringify(dataKas));
@@ -283,8 +330,6 @@ document.getElementById("jumlah").value="";
 tampil();
 
 }
-
-/* EDIT */
 
 function edit(i){
 
@@ -299,75 +344,95 @@ editIndex=i;
 
 }
 
-/* HAPUS */
-
 function hapus(i){
 
 if(confirm("Hapus transaksi?")){
-
 dataKas.splice(i,1);
-
 localStorage.setItem("dataKas",JSON.stringify(dataKas));
-
 tampil();
-
 }
 
 }
-
-/* GRAFIK */
 
 function grafik(masuk,keluar){
 
 let ctx=document.getElementById("grafik");
 
-if(chart){
-chart.destroy();
-}
+if(chart){chart.destroy();}
 
 chart=new Chart(ctx,{
-
 type:"doughnut",
-
 data:{
 labels:["Pemasukan","Pengeluaran"],
-datasets:[{
-data:[masuk,keluar]
-}]
+datasets:[{data:[masuk,keluar]}]
 }
-
 });
 
 }
 
-/* EXPORT */
+function backup(){
+
+let blob=new Blob([JSON.stringify(dataKas)],{type:"application/json"});
+
+let a=document.createElement("a");
+
+a.href=URL.createObjectURL(blob);
+a.download="backup_kas.json";
+a.click();
+
+}
+
+function importData(){
+
+document.getElementById("fileImport").click();
+
+}
+
+document.getElementById("fileImport").addEventListener("change",function(e){
+
+let file=e.target.files[0];
+let reader=new FileReader();
+
+reader.onload=function(){
+
+dataKas=JSON.parse(reader.result);
+
+localStorage.setItem("dataKas",JSON.stringify(dataKas));
+
+tampil();
+
+};
+
+reader.readAsText(file);
+
+});
 
 function exportExcel(){
 
 let csv="Tanggal,Keterangan,Masuk,Keluar\n";
 
 dataKas.forEach(d=>{
-
 csv+=`${d.tanggal},${d.ket},${d.jenis=="masuk"?d.jumlah:""},${d.jenis=="keluar"?d.jumlah:""}\n`;
-
 });
 
 let blob=new Blob([csv]);
-
 let a=document.createElement("a");
 
 a.href=URL.createObjectURL(blob);
-
 a.download="data_kas.csv";
-
 a.click();
 
 }
+
+window.tambah=tambah;
+window.edit=edit;
+window.hapus=hapus;
 
 tampil();
 
 });
 
 </script>
+
 </body>
 </html>
