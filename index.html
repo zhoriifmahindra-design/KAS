@@ -257,6 +257,8 @@ tbody.innerHTML="";
 
 let saldo=0, masuk=0, keluar=0;
 
+let masukFilter=0, keluarFilter=0, saldoFilter=0;
+
 let dataTampil=[];
 
 dataKas.forEach(d=>{
@@ -275,6 +277,15 @@ cocokFilter=d.tanggal.slice(0,4)==tahunIni;
 
 if(cocokSearch && cocokFilter){
 dataTampil.push(d);
+
+if(d.jenis=="masuk"){
+masukFilter += Number(d.jumlah);
+saldoFilter += Number(d.jumlah);
+}else{
+keluarFilter += Number(d.jumlah);
+saldoFilter -= Number(d.jumlah);
+}
+
 }
 
 });
@@ -310,9 +321,9 @@ tbody.innerHTML+=`
 
 });
 
-document.getElementById("saldo").innerText=rupiah(saldo);
-document.getElementById("totalMasuk").innerText=rupiah(masuk);
-document.getElementById("totalKeluar").innerText=rupiah(keluar);
+document.getElementById("saldo").innerText=rupiah(filter=="all" ? saldo : saldoFilter);
+document.getElementById("totalMasuk").innerText=rupiah(filter=="all" ? masuk : masukFilter);
+document.getElementById("totalKeluar").innerText=rupiah(filter=="all" ? keluar : keluarFilter);
 
 grafik();
 
