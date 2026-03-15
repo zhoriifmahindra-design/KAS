@@ -321,10 +321,11 @@ tbody.innerHTML+=`
 
 });
 
-document.getElementById("saldo").innerText=rupiah(filter=="all" ? saldo : saldoFilter);
-document.getElementById("totalMasuk").innerText=rupiah(filter=="all" ? masuk : masukFilter);
-document.getElementById("totalKeluar").innerText=rupiah(filter=="all" ? keluar : keluarFilter);
+let pakaiFilter = filter!="all" || search!=="";
 
+document.getElementById("saldo").innerText=rupiah(pakaiFilter ? saldoFilter : saldo);
+document.getElementById("totalMasuk").innerText=rupiah(pakaiFilter ? masukFilter : masuk);
+document.getElementById("totalKeluar").innerText=rupiah(pakaiFilter ? keluarFilter : keluar);
 grafik();
 
 }
