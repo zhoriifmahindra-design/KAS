@@ -9,6 +9,7 @@
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
 <style>
 
@@ -139,6 +140,12 @@ Saldo Saat Ini
 
 </div>
 </div>
+
+<button onclick="importExcel()">
+<i class="fa fa-file-import"></i> Import Excel
+</button>
+
+<input type="file" id="excelFile" accept=".xlsx,.xls" style="display:none">
 
 <div class="card">
 
@@ -406,6 +413,99 @@ tampil();
 reader.readAsText(file);
 
 });
+
+function importExcel(){
+
+document.getElementById("excelFile").click();
+
+}
+
+document.getElementById("excelFile").addEventListener("change",function(e){
+
+let file=e.target.files[0];
+
+let reader=new FileReader();
+
+reader.onload=function(evt){
+
+let data=new Uint8Array(evt.target.result);
+
+let workbook=XLSX.read(data,{type:"array"});
+
+let sheet=workbook.Sheets[workbook.SheetNames[0]];
+
+let rows=XLSX.utils.sheet_to_json(sheet,{header:1});
+
+rows.forEach((r,i)=>{
+
+if(i<2) return; // skip header
+
+let tanggal=r[1];
+let uraian=r[2];
+let debit=r[9];
+let kredit=r[10];
+
+if(!tanggal) return;
+
+if(debit && debit>0){
+
+dataKas.push({
+tanggal:formatTanggal(tanggal),
+jenis:"masuk",
+ket:uraian || "",
+jumlah:debit.toString()
+});
+
+}
+
+if(kredit && kredit>0){
+
+dataKas.push({
+tanggal:formatTanggal(tanggal),
+jenis:"keluar",
+ket:uraian || "",
+jumlah:kredit.toString()
+});
+
+}
+
+});
+
+localStorage.setItem("dataKas",JSON.stringify(dataKas));
+
+tampil();
+
+};
+
+reader.readAsArrayBuffer(file);
+
+});
+
+function formatTanggal(tgl){
+
+if(typeof tgl==="number"){
+
+let date=XLSX.SSF.parse_date_code(tgl);
+
+return date.y+"-"+String(date.m).padStart(2,'0')+"-"+String(date.d).padStart(2,'0');
+
+}
+
+if(typeof tgl==="string"){
+
+let parts=tgl.split("/");
+
+if(parts.length===3){
+
+return parts[2]+"-"+parts[1].padStart(2,'0')+"-"+parts[0].padStart(2,'0');
+
+}
+
+}
+
+return tgl;
+
+}
 
 function exportExcel(){
 
