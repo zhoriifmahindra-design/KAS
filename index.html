@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>KASKU SUPER</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+body{
+font-family:Arial;
+background:#f4f6fb;
+margin:0;
+padding:20px;
+}
+
+.container{
+max-width:900px;
+margin:auto;
+}
+
+.card{
+background:white;
+padding:20px;
+border-radius:12px;
+margin-bottom:20px;
+box-shadow:0 4px 12px rgba(0,0,0,0.05);
+}
+
+input,select{
+width:100%;
+padding:10px;
+margin-bottom:10px;
+border-radius:6px;
+border:1px solid #ddd;
+}
+
+button{
+padding:10px;
+border:none;
+border-radius:6px;
+background:#4f46e5;
+color:white;
+cursor:pointer;
+margin-right:5px;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+}
+
+th,td{
+padding:8px;
+border-bottom:1px solid #eee;
+}
+
+.saldo{
+font-size:30px;
+font-weight:bold;
+color:green;
+}
+
+.hapus{
+background:red;
+font-size:12px;
+padding:5px 10px;
+}
+
+.edit{
+background:orange;
+font-size:12px;
+padding:5px 10px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h2>KASKU SUPER</h2>
+
+<div class="card">
+
+Saldo Saat Ini
+
+<div class="saldo" id="saldo">Rp 0</div>
+
+</div>
+
+<div class="card">
+
+<h3>Tambah Transaksi</h3>
+
+<input type="date" id="tanggal">
+
+<select id="jenis">
+<option value="masuk">Pemasukan</option>
+<option value="keluar">Pengeluaran</option>
+</select>
+
+<input type="text" id="ket" placeholder="Keterangan">
+
+<input type="text" id="jumlah" placeholder="Jumlah">
+
+<button onclick="tambah()">Simpan</button>
+
+</div>
+
+<div class="card">
+
+<h3>Cari Transaksi</h3>
+
+<input type="text" id="search" placeholder="Cari..." onkeyup="tampil()">
+
+</div>
+
+<div class="card">
+
+<h3>Grafik Keuangan</h3>
+
+<canvas id="grafik"></canvas>
+
+</div>
+
+<div class="card">
+
+<h3>Data Transaksi</h3>
+
+<button onclick="exportExcel()">Export Excel</button>
+
+<table>
+
+<thead>
+
+<tr>
+<th>Tanggal</th>
+<th>Keterangan</th>
+<th>Masuk</th>
+<th>Keluar</th>
+<th>Aksi</th>
+</tr>
+
+</thead>
+
+<tbody id="tabel"></tbody>
+
+</table>
+
+</div>
+
+</div>
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function(){
+
+let dataKas = JSON.parse(localStorage.getItem("dataKas")) || [];
+let editIndex = null;
+let chart = null;
+
+function rupiah(angka){
+return new Intl.NumberFormat("id-ID").format(angka);
+}
+
+/* FORMAT INPUT RUPIAH */
+
+const inputJumlah = document.getElementById("jumlah");
+
+inputJumlah.addEventListener("input", function(e){
+
+let angka = e.target.value.replace(/\D/g,'');
+
+e.target.value = rupiah(angka);
+
+});
+
+/* TAMPIL DATA */
+
+function tampil(){
+
+let tabel=document.getElementById("tabel");
+let cari=document.getElementById("search").value.toLowerCase();
+
+tabel.innerHTML="";
+
+let saldo=0;
+let masuk=0;
+let keluar=0;
+let totalCariMasuk=0;
+
+dataKas.forEach((d,i)=>{
+
+if(d.ket.toLowerCase().includes(cari)){
+
+let jumlah = Number(d.jumlah);
+
+if(d.jenis=="masuk"){
+saldo+=jumlah;
+masuk+=jumlah;
+totalCariMasuk+=jumlah;
+}
+
+if(d.jenis=="keluar"){
+saldo-=jumlah;
+keluar+=jumlah;
+}
+
+tabel.innerHTML+=`
+<tr>
+<td>${d.tanggal}</td>
+<td>${d.ket}</td>
+<td>${d.jenis=="masuk"?"Rp "+rupiah(jumlah):"-"}</td>
+<td>${d.jenis=="keluar"?"Rp "+rupiah(jumlah):"-"}</td>
+<td>
+<button class="edit" onclick="edit(${i})">edit</button>
+<button class="hapus" onclick="hapus(${i})">hapus</button>
+</td>
+</tr>
+`;
+
+}
+
+});
+
+document.getElementById("saldo").innerText="Rp "+rupiah(saldo);
+
+/* TOTAL PEMASUKAN HASIL PENCARIAN */
+
+if(cari!=""){
+
+tabel.innerHTML+=`
+<tr style="background:#f3f4f6;font-weight:bold">
+<td colspan="2">Total Pemasukan Hasil Pencarian</td>
+<td colspan="3">Rp ${rupiah(totalCariMasuk)}</td>
+</tr>
+`;
+
+}
+
+grafik(masuk,keluar);
+
+}
+
+/* TAMBAH DATA */
+
+function tambah(){
+
+let tanggal=document.getElementById("tanggal").value;
+let jenis=document.getElementById("jenis").value;
+let ket=document.getElementById("ket").value;
+
+let jumlah=document.getElementById("jumlah").value.replace(/\./g,'');
+
+if(!tanggal||!ket||!jumlah){
+alert("Lengkapi data");
+return;
+}
+
+if(editIndex==null){
+
+dataKas.push({tanggal,jenis,ket,jumlah});
+
+}else{
+
+dataKas[editIndex]={tanggal,jenis,ket,jumlah};
+editIndex=null;
+
+}
+
+localStorage.setItem("dataKas",JSON.stringify(dataKas));
+
+document.getElementById("ket").value="";
+document.getElementById("jumlah").value="";
+
+tampil();
+
+}
+
+/* EDIT */
+
+function edit(i){
+
+let d=dataKas[i];
+
+document.getElementById("tanggal").value=d.tanggal;
+document.getElementById("jenis").value=d.jenis;
+document.getElementById("ket").value=d.ket;
+document.getElementById("jumlah").value=rupiah(d.jumlah);
+
+editIndex=i;
+
+}
+
+/* HAPUS */
+
+function hapus(i){
+
+if(confirm("Hapus transaksi?")){
+
+dataKas.splice(i,1);
+
+localStorage.setItem("dataKas",JSON.stringify(dataKas));
+
+tampil();
+
+}
+
+}
+
+/* GRAFIK */
+
+function grafik(masuk,keluar){
+
+let ctx=document.getElementById("grafik");
+
+if(chart){
+chart.destroy();
+}
+
+chart=new Chart(ctx,{
+
+type:"doughnut",
+
+data:{
+labels:["Pemasukan","Pengeluaran"],
+datasets:[{
+data:[masuk,keluar]
+}]
+}
+
+});
+
+}
+
+/* EXPORT */
+
+function exportExcel(){
+
+let csv="Tanggal,Keterangan,Masuk,Keluar\n";
+
+dataKas.forEach(d=>{
+
+csv+=`${d.tanggal},${d.ket},${d.jenis=="masuk"?d.jumlah:""},${d.jenis=="keluar"?d.jumlah:""}\n`;
+
+});
+
+let blob=new Blob([csv]);
+
+let a=document.createElement("a");
+
+a.href=URL.createObjectURL(blob);
+
+a.download="data_kas.csv";
+
+a.click();
+
+}
+
+tampil();
+
+});
+
+</script>
+</body>
+</html>
