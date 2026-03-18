@@ -4,8 +4,15 @@
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#4f46e5">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 
-<title>KK PRO</title>
+<title>PRO</title>
+
+<link rel="icon" type="image/png" sizes="192x192" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
@@ -98,24 +105,24 @@ border-bottom:1px solid #ddd;
 <div class="container">
 
 <h2>
-<i class="fa fa-wallet"></i> KK PRO
+<i class="fa fa-wallet"></i> PRO
 <button onclick="toggleDark()" style="float:right">🌙</button>
 </h2>
 
 <div class="grid">
 
 <div class="stat masuk">
-Pemasukan
+<i class="fa-solid fa-arrow-down"></i> Pemasukan
 <h2 id="totalMasuk">0</h2>
 </div>
 
 <div class="stat keluar">
-Pengeluaran
+<i class="fa-solid fa-arrow-up"></i> Pengeluaran
 <h2 id="totalKeluar">0</h2>
 </div>
 
 <div class="stat saldoBox">
-Saldo
+<i class="fa-solid fa-wallet"></i> Saldo
 <h2 id="saldo">0</h2>
 </div>
 
@@ -128,21 +135,23 @@ Saldo
 <input type="date" id="tanggal">
 
 <select id="jenis">
-<option value="masuk">Pemasukan</option>
-<option value="keluar">Pengeluaran</option>
+<option value="masuk">⬇ Pemasukan</option>
+<option value="keluar">⬆ Pengeluaran</option>
 </select>
 
-<input type="text" id="ket" placeholder="Keterangan">
+<input type="text" id="ket" placeholder="📝 Keterangan">
 
-<input type="number" min="1" step="1" id="jumlah" placeholder="Jumlah (Rp)">
+<input type="number" min="1" step="1" id="jumlah" placeholder="💰 Jumlah (Rp)">
 
-<button onclick="tambah()">Simpan</button>
+<button onclick="tambah()">
+<i class="fa-solid fa-floppy-disk"></i> Simpan
+</button>
 
 </div>
 
 <div class="card">
 
-<input type="text" id="search" placeholder="Cari..." onkeyup="render()">
+<input type="text" id="search" placeholder="🔍 Cari..." onkeyup="render()">
 
 <select id="filter" onchange="render()">
 <option value="all">Semua</option>
@@ -154,10 +163,21 @@ Saldo
 
 <div class="card">
 
-<button onclick="importExcel()">Import Excel</button>
-<button onclick="backup()">Backup</button>
-<button onclick="restore()">Restore</button>
-<button onclick="exportCSV()">Export CSV</button>
+<button onclick="importExcel()">
+<i class="fa-solid fa-file-excel"></i> Import Excel
+</button>
+
+<button onclick="backup()">
+<i class="fa-solid fa-download"></i> Backup
+</button>
+
+<button onclick="restore()">
+<i class="fa-solid fa-upload"></i> Restore
+</button>
+
+<button onclick="exportCSV()">
+<i class="fa-solid fa-file-csv"></i> Export CSV
+</button>
 
 <input type="file" id="excelFile" accept=".xlsx,.xls" style="display:none">
 <input type="file" id="jsonFile" style="display:none">
@@ -197,6 +217,7 @@ Saldo
 <script>
 
 let dataKas = JSON.parse(localStorage.getItem("kas")) || [];
+let editId = null;
 let chart;
 
 document.getElementById("tanggal").value =
@@ -212,25 +233,45 @@ return "Rp " + new Intl.NumberFormat("id-ID").format(n);
 
 function tambah(){
 
-let obj={
-id: Date.now(),
-tanggal:document.getElementById("tanggal").value,
-jenis:document.getElementById("jenis").value,
-ket:document.getElementById("ket").value,
-jumlah:Number(document.getElementById("jumlah").value)
-};
+let tanggal = document.getElementById("tanggal").value;
+let jenis = document.getElementById("jenis").value;
+let ket = document.getElementById("ket").value;
+let jumlah = Number(document.getElementById("jumlah").value);
 
-if(!obj.tanggal || !obj.ket || !obj.jumlah){
+if(!tanggal || !ket || !jumlah){
 alert("Lengkapi data");
 return;
 }
 
-if(obj.jumlah<=0){
+if(jumlah<=0){
 alert("Jumlah harus lebih dari 0");
 return;
 }
 
+if(editId){
+
+let data = dataKas.find(d=>d.id===editId);
+
+data.tanggal = tanggal;
+data.jenis = jenis;
+data.ket = ket;
+data.jumlah = jumlah;
+
+editId = null;
+
+}else{
+
+let obj={
+id: Date.now(),
+tanggal,
+jenis,
+ket,
+jumlah
+};
+
 dataKas.push(obj);
+
+}
 
 save();
 render();
@@ -312,7 +353,15 @@ tbody.innerHTML+=`
 <td>${d.jenis=="keluar"?rupiah(jumlah):""}</td>
 <td>${rupiah(saldo)}</td>
 <td>
-<button onclick="hapus(${d.id})">X</button>
+
+<button onclick="edit(${d.id})">
+<i class="fa-solid fa-pen"></i>
+</button>
+
+<button onclick="hapus(${d.id})">
+<i class="fa-solid fa-trash"></i>
+</button>
+
 </td>
 </tr>
 `;
@@ -340,6 +389,24 @@ save();
 render();
 
 }
+
+}
+
+function edit(id){
+
+let d = dataKas.find(x=>x.id===id);
+
+document.getElementById("tanggal").value = d.tanggal;
+document.getElementById("jenis").value = d.jenis;
+document.getElementById("ket").value = d.ket;
+document.getElementById("jumlah").value = d.jumlah;
+
+editId = id;
+
+window.scrollTo({
+top:0,
+behavior:"smooth"
+});
 
 }
 
@@ -381,10 +448,21 @@ datasets:[{
 label:"Saldo Bulanan",
 data:values
 }]
+},
+
+options:{
+responsive:true,
+plugins:{
+legend:{display:true}
+},
+scales:{
+y:{
+beginAtZero:true
+}
+}
 }
 
 });
-
 }
 
 function backup(){
